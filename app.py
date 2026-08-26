@@ -5,12 +5,10 @@ Legal Metrology (Packaged Commodities) Rules, 2011 compliance scanner.
 Flow: Upload -> Extract (OCR) -> Validate (rules) -> Report (PDF) -> Dashboard (history)
 """
 
-import hmac
-import os
-
 import streamlit as st
 from PIL import Image
 
+from core.auth import create_user, init_auth_db, verify_user
 from core.ocr import extract_text
 from core.preprocess import preprocess_for_ocr
 from core.report import generate_pdf_report
@@ -18,56 +16,66 @@ from core.rules import check_compliance
 from core.storage import init_db, list_scans, save_scan
 
 st.set_page_config(page_title="MetroVigil AI", page_icon=":shield:", layout="wide")
+init_db()
+init_auth_db()
 
-EXPECTED_USERNAME = os.getenv("METROVIGIL_USERNAME", "admin")
-EXPECTED_PASSWORD = os.getenv("METROVIGIL_PASSWORD", "admin123")
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = None
 
+# ----------------------------------------------------------------------
+# Login / Sign Up gate — nothing below renders until logged_in is True
+# ----------------------------------------------------------------------
+if not st.session_state.logged_in:
+    st.title("MetroVigil AI")
+    st.caption("Legal Metrology (Packaged Commodities) Rules, 2011 — compliance scanner")
 
-def show_login() -> bool:
-    if st.session_state.get("authenticated", False):
-        return True
+    tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
 
-    _, login_column, _ = st.columns([1, 1.2, 1])
-    with login_column:
-        st.title("MetroVigil AI")
-        st.subheader("Login")
-        st.caption("Access the legal metrology compliance scanner.")
-
-        with st.form("login_form"):
-            username = st.text_input("Username", autocomplete="username")
-            password = st.text_input(
-                "Password", type="password", autocomplete="current-password"
-            )
-            submitted = st.form_submit_button("Login", type="primary", use_container_width=True)
-
-        if submitted:
-            valid_username = hmac.compare_digest(username, EXPECTED_USERNAME)
-            valid_password = hmac.compare_digest(password, EXPECTED_PASSWORD)
-            if valid_username and valid_password:
-                st.session_state.authenticated = True
-                st.session_state.logged_in_username = username
+    with tab_signin:
+        st.subheader("Sign in to your account")
+        si_username = st.text_input("Username", key="signin_username")
+        si_password = st.text_input("Password", type="password", key="signin_password")
+        if st.button("Sign In", type="primary"):
+            if verify_user(si_username, si_password):
+                st.session_state.logged_in = True
+                st.session_state.username = si_username.strip()
                 st.rerun()
             else:
-                st.error("Invalid username or password.")
+                st.error("Incorrect username or password.")
 
-    return False
+    with tab_signup:
+        st.subheader("Create an account")
+        su_username = st.text_input("Choose a username", key="signup_username")
+        su_password = st.text_input("Choose a password", type="password", key="signup_password")
+        su_password_confirm = st.text_input(
+            "Confirm password", type="password", key="signup_password_confirm"
+        )
+        if st.button("Sign Up", type="primary"):
+            if su_password != su_password_confirm:
+                st.error("Passwords do not match.")
+            else:
+                success, message = create_user(su_username, su_password)
+                if success:
+                    st.success(message + " Switch to the Sign In tab to log in.")
+                else:
+                    st.error(message)
 
+    st.stop()  # nothing past this point renders until the user is logged in
 
-if not show_login():
-    st.stop()
-
-init_db()
+# ----------------------------------------------------------------------
+# Logged in — show the app
+# ----------------------------------------------------------------------
+with st.sidebar:
+    st.write(f"Signed in as **{st.session_state.username}**")
+    if st.button("Log out"):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.rerun()
 
 st.title("MetroVigil AI")
 st.caption("Legal Metrology (Packaged Commodities) Rules, 2011 — compliance scanner")
-
-with st.sidebar:
-    logged_in_user = st.session_state.get("logged_in_username", "user")
-    st.caption(f"Signed in as {logged_in_user}")
-    if st.button("Logout", use_container_width=True):
-        st.session_state.authenticated = False
-        st.session_state.logged_in_username = None
-        st.rerun()
 
 tab_scan, tab_dashboard = st.tabs(["Scan a product", "Dashboard & history"])
 

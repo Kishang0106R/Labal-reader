@@ -1,18 +1,24 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 
-# Database
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment/secrets
+.env
+.env.*
+
+# Databases
 *.db
 *.sqlite
 *.sqlite3
 
-# Virtual environment
-venv/
-.venv/
+# OS files
+.DS_Store
+Thumbs.db
 
-# Environment variables / secrets
-.env
-
-# Streamlit secrets
+# Streamlit
 .streamlit/secrets.toml
