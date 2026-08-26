@@ -1,0 +1,72 @@
+{
+  "rules": [
+    {
+      "id": "mrp",
+      "label": "Maximum Retail Price (MRP)",
+      "description": "Retail price must be declared, inclusive of all taxes, typically prefixed with 'MRP' and a currency symbol.",
+      "patterns": [
+        "\\bMRP\\b",
+        "MAX(?:IMUM)?\\.?\\s*RETAIL\\s*PRICE",
+        "(?:RS\\.?|INR|\\u20b9)\\s?\\d+(?:[.,]\\d{1,2})?"
+      ],
+      "required": true
+    },
+    {
+      "id": "net_quantity",
+      "label": "Net Quantity",
+      "description": "Net weight/volume/count of the commodity, in standard units (g, kg, ml, l, or count).",
+      "patterns": [
+        "NET\\s*(?:WT|WEIGHT|QTY|QUANTITY|VOL|VOLUME)?",
+        "\\b\\d+(?:\\.\\d+)?\\s?(?:G|GM|GMS|KG|ML|L|LTR|LITRE|LITRES)\\b"
+      ],
+      "required": true
+    },
+    {
+      "id": "mfg_date",
+      "label": "Month & Year of Manufacture/Packing/Import",
+      "description": "Month and year the product was manufactured, packed, or imported.",
+      "patterns": [
+        "\\b(?:MFG|MFD|MANUFACTURE[D]?|PKD|PACKED|PACKAGING)\\b.{0,15}\\bDATE\\b",
+        "\\b(?:MFG|MFD|PKD)\\b\\.?\\s*[:\\-]?\\s*\\d{1,2}[/\\-]\\d{2,4}",
+        "\\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\.?\\s?\\d{4}\\b"
+      ],
+      "required": true
+    },
+    {
+      "id": "manufacturer",
+      "label": "Name & Address of Manufacturer/Packer/Importer",
+      "description": "Full name and address of the manufacturer, packer, or importer of the commodity.",
+      "patterns": [
+        "\\bMANUFACTURED\\s+BY\\b",
+        "\\bMARKETED\\s+BY\\b",
+        "\\bPACKED\\s+BY\\b",
+        "\\bIMPORTED\\s+BY\\b",
+        "\\bMFG\\.?\\s*BY\\b"
+      ],
+      "required": true
+    },
+    {
+      "id": "consumer_care",
+      "label": "Consumer Care Details",
+      "description": "Contact information (phone, email, or address) for consumer complaints/queries.",
+      "patterns": [
+        "CONSUMER\\s*(?:CARE|COMPLAINT|HELPLINE)",
+        "CUSTOMER\\s*(?:CARE|SUPPORT)",
+        "[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}",
+        "\\b\\d{10}\\b",
+        "\\b1800[\\-\\s]?\\d{3}[\\-\\s]?\\d{4}\\b"
+      ],
+      "required": true
+    },
+    {
+      "id": "country_of_origin",
+      "label": "Country of Origin",
+      "description": "Required for imported goods — country where the product was manufactured.",
+      "patterns": [
+        "COUNTRY\\s+OF\\s+ORIGIN",
+        "MADE\\s+IN\\s+[A-Z]+"
+      ],
+      "required": false
+    }
+  ]
+}

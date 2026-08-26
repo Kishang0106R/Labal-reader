@@ -1,0 +1,10 @@
+streamlit>=1.35
+opencv-python-headless>=4.9
+pillow>=10.0
+pytesseract>=0.3.10
+fpdf2>=2.7
+
+# Note: pytesseract requires the Tesseract OCR binary installed separately.
+# Ubuntu/Debian: sudo apt-get install tesseract-ocr
+# macOS:         brew install tesseract
+# Windows:       https://github.com/UB-Mannheim/tesseract/wiki
