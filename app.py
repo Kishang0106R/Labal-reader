@@ -1,11 +1,13 @@
-"""
-Label Lens — Streamlit prototype
+"""Label Lens — product-label compliance scanner.
 
-Legal Metrology (Packaged Commodities) Rules, 2011 compliance scanner.
-Flow: Upload -> Extract (OCR) -> Validate (rules) -> Report (PDF) -> Dashboard (history)
+This file boots the Streamlit app and wires together the existing OCR,
+preprocessing, rules, storage, and report modules.
 """
+
+from __future__ import annotations
 
 import streamlit as st
+from dotenv import load_dotenv
 from PIL import Image
 
 from core.auth import create_user, init_auth_db, verify_user
@@ -15,169 +17,144 @@ from core.report import generate_pdf_report
 from core.rules import check_compliance
 from core.storage import init_db, list_scans, save_scan
 
-st.set_page_config(page_title="Label Lens", page_icon=":shield:", layout="wide")
-init_db()
-init_auth_db()
+load_dotenv()
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "username" not in st.session_state:
-    st.session_state.username = None
 
-# ----------------------------------------------------------------------
-# Login / Sign Up gate — nothing below renders until logged_in is True
-# ----------------------------------------------------------------------
-if not st.session_state.logged_in:
+st.set_page_config(page_title="Label Lens", page_icon="📦", layout="wide")
+
+
+def _login_signup_ui() -> None:
+    """Display auth UI and gate access to the scanner."""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if st.session_state.authenticated:
+        return
+
     st.title("Label Lens")
-    st.caption("Legal Metrology (Packaged Commodities) Rules, 2011 — compliance scanner")
+    st.caption("Legal Metrology compliance scanner")
 
-    tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
+    login_tab, signup_tab = st.tabs(["Login", "Create account"])
 
-    with tab_signin:
-        st.subheader("Sign in to your account")
-        si_username = st.text_input("Username", key="signin_username")
-        si_password = st.text_input("Password", type="password", key="signin_password")
-        if st.button("Sign In", type="primary"):
-            if verify_user(si_username, si_password):
-                st.session_state.logged_in = True
-                st.session_state.username = si_username.strip()
+    with login_tab:
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Login", key="login_button"):
+            if verify_user(username, password):
+                st.session_state.authenticated = True
+                st.success("Login successful.")
                 st.rerun()
             else:
-                st.error("Incorrect username or password.")
+                st.error("Invalid username or password.")
 
-    with tab_signup:
-        st.subheader("Create an account")
-        su_username = st.text_input("Choose a username", key="signup_username")
-        su_password = st.text_input("Choose a password", type="password", key="signup_password")
-        su_password_confirm = st.text_input(
-            "Confirm password", type="password", key="signup_password_confirm"
-        )
-        if st.button("Sign Up", type="primary"):
-            if su_password != su_password_confirm:
-                st.error("Passwords do not match.")
+    with signup_tab:
+        new_username = st.text_input("Username", key="signup_username")
+        email = st.text_input("Email", key="signup_email")
+        new_password = st.text_input("Password", type="password", key="signup_password")
+        if st.button("Create account", key="signup_button"):
+            ok, message = create_user(new_username, email, new_password)
+            if ok:
+                st.session_state.authenticated = True
+                st.success(message)
+                st.rerun()
             else:
-                success, message = create_user(su_username, su_password)
-                if success:
-                    st.success(message + " Switch to the Sign In tab to log in.")
-                else:
-                    st.error(message)
+                st.error(message)
 
-    st.stop()  # nothing past this point renders until the user is logged in
 
-# ----------------------------------------------------------------------
-# Logged in — show the app
-# ----------------------------------------------------------------------
-with st.sidebar:
-    st.write(f"Signed in as **{st.session_state.username}**")
-    if st.button("Log out"):
-        st.session_state.logged_in = False
-        st.session_state.username = None
+def _scanner_ui() -> None:
+    """Main OCR and compliance evaluation workflow."""
+    st.title("Label Lens")
+    st.caption("Scan product labels for mandatory legal-metrology declarations")
+
+    if st.sidebar.button("Log out"):
+        st.session_state.authenticated = False
         st.rerun()
 
-st.title("Label Lens")
-st.caption("Legal Metrology (Packaged Commodities) Rules, 2011 — compliance scanner")
+    init_auth_db()
+    init_db()
 
-tab_scan, tab_dashboard = st.tabs(["Scan a product", "Dashboard & history"])
+    product_name = st.text_input("Product name", value="Sample product")
+    uploaded_file = st.file_uploader("Upload product label image", type=["png", "jpg", "jpeg", "webp"])
 
-# ----------------------------------------------------------------------
-# TAB 1: Scan a product (Upload -> Extract -> Validate -> Report)
-# ----------------------------------------------------------------------
-with tab_scan:
-    col_left, col_right = st.columns([1, 1])
+    if uploaded_file is None:
+        st.info("Upload a photo of a packaged label to begin the compliance check.")
+        st.stop()
 
-    with col_left:
-        st.subheader("1. Upload")
-        product_name = st.text_input("Product name", placeholder="e.g. Sunrise Wheat Flour 1kg")
-        uploaded_file = st.file_uploader(
-            "Upload a photo of the product label", type=["jpg", "jpeg", "png"]
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded label", use_container_width=True)
+
+    with st.spinner("Processing label..."):
+        processed = preprocess_for_ocr(image)
+        extracted_text = extract_text(processed)
+        result = check_compliance(extracted_text)
+
+    st.subheader("Extracted text")
+    st.text_area("OCR output", extracted_text or "No text detected.", height=240)
+
+    st.subheader("Compliance summary")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Mandatory fields", result.total_required)
+    col2.metric("Found", result.passed_required)
+    col3.metric("Score", f"{result.score_pct}%")
+
+    status_color = "green" if result.is_compliant else "red"
+    st.markdown(f"<p style='color:{status_color}; font-weight:bold; font-size:1.1rem;'>Verdict: {'COMPLIANT' if result.is_compliant else 'NON-COMPLIANT'}</p>", unsafe_allow_html=True)
+
+    st.dataframe(
+        [{
+            "Declaration": field.label,
+            "Required": field.required,
+            "Found": field.found,
+            "Matched text": field.matched_text or "-",
+        } for field in result.fields],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    notes = st.text_area("Notes for report", "")
+    if st.button("Save scan"):
+        scan_id = save_scan(product_name, extracted_text, result)
+        st.success(f"Scan saved with ID {scan_id}.")
+
+    report_bytes = generate_pdf_report(product_name, result, notes)
+    st.download_button(
+        label="Download compliance report (PDF)",
+        data=report_bytes,
+        file_name=f"{product_name.replace(' ', '_')}_report.pdf",
+        mime="application/pdf",
+    )
+
+    st.subheader("Recent scans")
+    scans = list_scans()
+    if scans:
+        st.dataframe(
+            [
+                {
+                    "ID": row["id"],
+                    "Product": row["product_name"],
+                    "Score": row["score_pct"],
+                    "Status": "Compliant" if row["is_compliant"] else "Non-compliant",
+                    "Time": row["scanned_at"],
+                }
+                for row in scans[:10]
+            ],
+            use_container_width=True,
+            hide_index=True,
         )
-
-        image = None
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Original image", use_container_width=True)
-
-    with col_right:
-        if image is not None:
-            st.subheader("2. Extract")
-            with st.spinner("Preprocessing image..."):
-                cleaned = preprocess_for_ocr(image)
-            st.image(cleaned, caption="Preprocessed for OCR", use_container_width=True)
-
-            with st.spinner("Running OCR..."):
-                extracted_text = extract_text(cleaned)
-
-            with st.expander("View extracted text"):
-                st.text(extracted_text if extracted_text.strip() else "(no text detected)")
-
-    if image is not None:
-        st.divider()
-        st.subheader("3. Validate")
-
-        if not product_name:
-            st.warning("Enter a product name above before checking compliance.")
-        else:
-            result = check_compliance(extracted_text)
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Compliance score", f"{result.score_pct}%")
-            m2.metric("Fields found", f"{result.passed_required}/{result.total_required}")
-            m3.metric("Verdict", "COMPLIANT" if result.is_compliant else "NON-COMPLIANT")
-
-            for f in result.fields:
-                icon = ":white_check_mark:" if f.found else (":x:" if f.required else ":heavy_minus_sign:")
-                label = f"{icon} **{f.label}**" + (" *(required)*" if f.required else " *(optional)*")
-                st.markdown(label)
-                if f.found:
-                    st.caption(f"Detected: \u201c{f.matched_text}\u201d")
-                else:
-                    st.caption(f.description)
-
-            st.divider()
-            st.subheader("4. Report")
-
-            notes = st.text_area("Inspector notes (optional)", placeholder="Any additional observations...")
-
-            col_a, col_b = st.columns([1, 3])
-            with col_a:
-                if st.button("Save scan to repository", type="primary"):
-                    save_scan(product_name, extracted_text, result)
-                    st.success("Scan saved. See it in the Dashboard tab.")
-
-            pdf_bytes = generate_pdf_report(product_name, result, notes)
-            st.download_button(
-                "Download PDF report",
-                data=pdf_bytes,
-                file_name=f"{product_name.replace(' ', '_')}_compliance_report.pdf",
-                mime="application/pdf",
-            )
-
-# ----------------------------------------------------------------------
-# TAB 2: Dashboard & history (Repository + search)
-# ----------------------------------------------------------------------
-with tab_dashboard:
-    st.subheader("Scan repository")
-
-    search_term = st.text_input("Search by product name", key="search_box")
-    scans = list_scans(search=search_term if search_term else None)
-
-    if not scans:
-        st.info("No scans yet. Run a scan in the first tab to see it appear here.")
     else:
-        total = len(scans)
-        compliant = sum(1 for s in scans if s["is_compliant"])
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total scans", total)
-        c2.metric("Compliant", compliant)
-        c3.metric("Non-compliant", total - compliant)
+        st.info("No scans saved yet.")
 
-        st.divider()
 
-        for s in scans:
-            status = "COMPLIANT" if s["is_compliant"] else "NON-COMPLIANT"
-            with st.expander(f"{s['product_name']} — {status} ({s['score_pct']}%) — {s['scanned_at']}"):
-                st.write(f"Scan ID: {s['id']}")
-                st.write(f"Score: {s['score_pct']}%")
-                if s["extracted_text"]:
-                    st.caption("Extracted text:")
-                    st.text(s["extracted_text"][:500])
+def main() -> None:
+    """Entry point for the Streamlit app."""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        _login_signup_ui()
+    else:
+        _scanner_ui()
+
+
+if __name__ == "__main__":
+    main()

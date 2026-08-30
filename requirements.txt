@@ -3,6 +3,8 @@ opencv-python-headless>=4.9
 pillow>=10.0
 pytesseract>=0.3.10
 fpdf2>=2.7
+requests>=2.31.0
+python-dotenv>=1.0.1
 
 # Note: pytesseract requires the Tesseract OCR binary installed separately.
 # Ubuntu/Debian: sudo apt-get install tesseract-ocr
