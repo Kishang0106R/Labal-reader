@@ -1,5 +1,5 @@
 """
-MetroVigil AI — Streamlit prototype
+Label Lens — Streamlit prototype
 
 Legal Metrology (Packaged Commodities) Rules, 2011 compliance scanner.
 Flow: Upload -> Extract (OCR) -> Validate (rules) -> Report (PDF) -> Dashboard (history)
@@ -15,7 +15,7 @@ from core.report import generate_pdf_report
 from core.rules import check_compliance
 from core.storage import init_db, list_scans, save_scan
 
-st.set_page_config(page_title="MetroVigil AI", page_icon=":shield:", layout="wide")
+st.set_page_config(page_title="Label Lens", page_icon=":shield:", layout="wide")
 init_db()
 init_auth_db()
 
@@ -28,7 +28,7 @@ if "username" not in st.session_state:
 # Login / Sign Up gate — nothing below renders until logged_in is True
 # ----------------------------------------------------------------------
 if not st.session_state.logged_in:
-    st.title("MetroVigil AI")
+    st.title("Label Lens")
     st.caption("Legal Metrology (Packaged Commodities) Rules, 2011 — compliance scanner")
 
     tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
@@ -74,7 +74,7 @@ with st.sidebar:
         st.session_state.username = None
         st.rerun()
 
-st.title("MetroVigil AI")
+st.title("Label Lens")
 st.caption("Legal Metrology (Packaged Commodities) Rules, 2011 — compliance scanner")
 
 tab_scan, tab_dashboard = st.tabs(["Scan a product", "Dashboard & history"])

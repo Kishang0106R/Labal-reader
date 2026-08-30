@@ -1,4 +1,4 @@
-# MetroVigil AI — Legal Metrology Compliance Scanner (Prototype)
+# Label Lens — Legal Metrology Compliance Scanner (Prototype)
 
 SIH Problem Statement 26034: Software System to check compliance of
 Packaged Commodities under the Legal Metrology (Packaged Commodities)
