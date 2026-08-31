@@ -141,9 +141,9 @@ def create_user(
     # Hash the password.
     pw_hash = _hash_password(password, salt)
 
-    try:
+    conn = sqlite3.connect(DB_PATH)
 
-        conn = sqlite3.connect(DB_PATH)
+    try:
 
         conn.execute(
             """
@@ -160,7 +160,6 @@ def create_user(
         )
 
         conn.commit()
-        conn.close()
 
         return True, "Account created successfully!"
 
@@ -175,6 +174,10 @@ def create_user(
             return False, "Email is already registered."
 
         return False, "Could not create account."
+
+    finally:
+
+        conn.close()
 
 
 # ---------------------------------------------------------
@@ -226,6 +229,12 @@ def verify_user(username: str, password: str) -> bool:
 # =========================================================
 # AUTHSIGNAL EMAIL OTP
 # =========================================================
+#
+# Correct Authsignal flow:
+#   1. Track Action  (Server API, Basic Auth)  → returns token
+#   2. Challenge     (Client API, Bearer token) → sends OTP
+#   3. Verify        (Client API, Bearer token) → checks OTP
+# =========================================================
 
 
 def _check_authsignal_config():
@@ -243,6 +252,53 @@ def _check_authsignal_config():
 
 
 # ---------------------------------------------------------
+# Step 1: Track Action (Server API)
+# ---------------------------------------------------------
+
+def _track_action(email: str, action: str = "signupEmailVerification"):
+    """
+    Call the Authsignal Server API to track an action.
+
+    Uses HTTP Basic Auth (secret key as username, empty password).
+    Returns (success, data_or_error).
+    """
+
+    url = (
+        f"{AUTHSIGNAL_API_URL}/users/"
+        f"{requests.utils.quote(email, safe='')}"
+        f"/actions/{action}"
+    )
+
+    try:
+
+        response = requests.post(
+            url,
+            auth=(AUTHSIGNAL_API_SECRET, ""),
+            json={"email": email},
+            timeout=15,
+        )
+
+        data = response.json()
+
+    except requests.RequestException as e:
+        return False, f"Could not connect to Authsignal: {e}"
+
+    except ValueError:
+        return False, "Authsignal returned an invalid response."
+
+    if response.ok:
+        return True, data
+
+    error_message = (
+        data.get("message")
+        or data.get("error")
+        or f"Track action failed (HTTP {response.status_code})."
+    )
+
+    return False, error_message
+
+
+# ---------------------------------------------------------
 # Send Email OTP
 # ---------------------------------------------------------
 
@@ -250,60 +306,70 @@ def send_email_otp(email: str):
     """
     Ask Authsignal to send an Email OTP.
 
+    Flow:
+        1. Track action → get short-lived token
+        2. Challenge email-otp → Authsignal sends the email
+
     Returns:
-        success, message, challenge_id
+        success, message, token, expires_at
     """
 
     email = email.strip().lower()
 
     if not email:
-        return False, "Email cannot be empty.", None
+        return False, "Email cannot be empty.", None, None
 
     configured, message = _check_authsignal_config()
 
     if not configured:
-        return False, message, None
+        return False, message, None, None
 
-    # Authsignal API endpoint for initiating a challenge.
-    url = f"{AUTHSIGNAL_API_URL}/challenges"
+    # ---- Step 1: Track action ----
 
-    headers = {
-        "Authorization": f"Bearer {AUTHSIGNAL_API_SECRET}",
+    ok, result = _track_action(email)
+
+    if not ok:
+        return False, result, None, None
+
+    token = result.get("token")
+
+    if not token:
+        return (
+            False,
+            "Authsignal did not return a token.",
+            None,
+            None,
+        )
+
+    # ---- Step 2: Challenge email-otp ----
+
+    challenge_url = (
+        f"{AUTHSIGNAL_API_URL}/client/challenge/email-otp"
+    )
+
+    challenge_headers = {
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-    }
-
-    payload = {
-        # Email OTP authenticator
-        "verificationMethod": "EMAIL_OTP",
-
-        # This identifies what the user is verifying.
-        "action": "signupEmailVerification",
-
-        # Email receiving the OTP.
-        "email": email,
-
-        # Use email as the user's identifier.
-        "userId": email,
     }
 
     try:
 
         response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=15
+            challenge_url,
+            headers=challenge_headers,
+            json={},
+            timeout=15,
         )
 
-        # Convert response into JSON.
         data = response.json()
 
     except requests.RequestException as e:
 
         return (
             False,
-            f"Could not connect to Authsignal: {e}",
-            None
+            f"Could not send OTP: {e}",
+            None,
+            None,
         )
 
     except ValueError:
@@ -311,36 +377,35 @@ def send_email_otp(email: str):
         return (
             False,
             "Authsignal returned an invalid response.",
-            None
+            None,
+            None,
         )
 
-    # Authsignal accepted the request.
     if response.ok:
 
-        challenge_id = data.get("challengeId")
+        import time
 
-        if not challenge_id:
-
-            return (
-                False,
-                "Authsignal did not return a challenge ID.",
-                None
-            )
+        expires_at = time.time() + 120
 
         return (
             True,
             "OTP sent successfully to your email.",
-            challenge_id
+            token,
+            expires_at,
         )
 
-    # Authsignal rejected the request.
     error_message = (
         data.get("message")
         or data.get("error")
         or "Failed to send OTP."
     )
 
-    return False, error_message, None
+    return (
+        False,
+        error_message,
+        None,
+        None,
+    )
 
 
 # ---------------------------------------------------------
@@ -348,24 +413,22 @@ def send_email_otp(email: str):
 # ---------------------------------------------------------
 
 def verify_email_otp(
-    email: str,
-    challenge_id: str,
+    token: str,
     otp: str
 ):
     """
     Verify the OTP entered by the user.
 
+    Uses the short-lived Bearer token obtained during
+    send_email_otp (stored as otp_challenge_id in session).
+
     Returns:
         success, message
     """
 
-    email = email.strip().lower()
     otp = otp.strip()
 
-    if not email:
-        return False, "Email cannot be empty."
-
-    if not challenge_id:
+    if not token:
         return False, "Please request an OTP first."
 
     if not otp:
@@ -376,19 +439,17 @@ def verify_email_otp(
     if not configured:
         return False, message
 
-    # Authsignal verification endpoint.
     url = (
-        f"{AUTHSIGNAL_API_URL}/challenges/"
-        f"{challenge_id}/verify"
+        f"{AUTHSIGNAL_API_URL}/client/verify/email-otp"
     )
 
     headers = {
-        "Authorization": f"Bearer {AUTHSIGNAL_API_SECRET}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
     payload = {
-        "code": otp
+        "verificationCode": otp
     }
 
     try:
@@ -397,7 +458,7 @@ def verify_email_otp(
             url,
             headers=headers,
             json=payload,
-            timeout=15
+            timeout=15,
         )
 
         data = response.json()
@@ -416,23 +477,20 @@ def verify_email_otp(
             "Authsignal returned an invalid response."
         )
 
-    # OTP verified.
     if response.ok:
 
-        # Authsignal may return different success
-        # information depending on API version.
+        is_verified = data.get("isVerified")
         status = data.get("status")
-        verified = data.get("verified")
 
         if (
-            status == "VERIFIED"
+            is_verified is True
+            or status == "VERIFIED"
             or status == "verified"
-            or verified is True
-            or response.ok
         ):
             return True, "Email verified successfully."
 
-    # OTP failed.
+        return False, "Invalid or expired OTP."
+
     error_message = (
         data.get("message")
         or data.get("error")
