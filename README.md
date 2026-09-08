@@ -1,33 +1,96 @@
-# Label Lens — Legal Metrology Compliance Scanner (Prototype)
+# Label Lens - Legal Metrology Compliance Scanner
 
-SIH Problem Statement 26034: Software System to check compliance of
-Packaged Commodities under the Legal Metrology (Packaged Commodities)
-Rules, 2011 by scanning products, images and labels.
+Label Lens is a Streamlit prototype for checking packaged-product labels against mandatory declarations from the Legal Metrology (Packaged Commodities) Rules, 2011. It accepts a label image, extracts its text, evaluates configured rules, stores scan history, and produces a PDF report.
 
-## What this prototype does
+## Technical workflow
 
-1. **Upload** — upload a photo of a product label
-2. **Extract** — preprocesses the image (OpenCV) and runs OCR (Tesseract) to pull out the raw text
-3. **Validate** — checks the extracted text against mandatory declarations (MRP, net quantity, mfg date, manufacturer, consumer care, country of origin) using a rule engine defined in `data/rules.json`
-4. **Report** — generates a downloadable PDF compliance report
-5. **Dashboard** — every scan is saved to a local SQLite database and browsable/searchable in a second tab
+```mermaid
+flowchart TD
+  A[Start Streamlit app] --> B[Load .env configuration]
+  B --> C[Initialize auth.db and scans.db]
+  C --> D{Authenticated?}
+  D -- No --> E[Sign up or log in]
+  E --> F{New account?}
+  F -- Yes --> G[Send email OTP]
+  G --> H[Verify OTP and create user]
+  F -- No --> I[Verify email and password]
+  H --> J[Set authenticated session state]
+  I --> J
+  D -- Yes --> J
+  J --> K[Open Scanner page]
+  K --> L[Upload label image]
+  L --> M[Open image with Pillow]
+  M --> N[Preprocess with OpenCV]
+  N --> N1[Resize, grayscale, denoise, CLAHE, adaptive threshold]
+  N1 --> O[Extract text with Tesseract OCR]
+  O --> P[Load rules from data/rules.json]
+  P --> Q[Regex match mandatory declarations]
+  Q --> R[Build ComplianceResult]
+  R --> S[Display score, verdict, and matched fields]
+  S --> T{User action}
+  T --> U[Save scan to data/scans.db]
+  T --> V[Generate and download PDF report]
+  U --> W[Browse/search Scan History]
+```
+
+### Scan processing sequence
+
+1. The user enters a product name and uploads a label image.
+2. `core/preprocess.py` converts the image to grayscale, reduces noise, enhances contrast, and applies adaptive thresholding.
+3. `core/ocr.py` sends the processed image to Tesseract using page segmentation mode 6.
+4. `core/rules.py` loads the configured rules and checks each pattern against the OCR text without regard to case.
+5. The rule engine returns a `ComplianceResult` containing field-level status, matched text, score, and missing required fields.
+6. Streamlit keeps the latest result in session state so it can be displayed and used by the save/report actions.
+7. `core/storage.py` optionally persists the result and OCR text in SQLite.
+8. `core/report.py` converts the result into a downloadable PDF containing the verdict, score, detected text, and violations.
+
+## Authentication workflow
+
+1. `app.py` loads environment variables and initializes `data/auth.db`.
+2. A new user provides a username, email, and password.
+3. The application sends a six-digit email OTP. The OTP expires after five minutes and is held as a hash in memory.
+4. After OTP verification, the password is stored as a PBKDF2-HMAC-SHA256 hash and the user is created in SQLite.
+5. Login normalizes the email, verifies the password hash, and sets Streamlit session state.
+6. Scanner and history pages are available only after authentication.
 
 ## Project structure
 
 ```
-metrology-app/
-├── app.py                # Streamlit UI — entry point
+Labal-reader/
+├── app.py                # Streamlit UI and application orchestration
 ├── core/
-│   ├── preprocess.py      # image cleanup before OCR (OpenCV)
-│   ├── ocr.py              # text extraction (Tesseract, swappable for Cloud Vision)
-│   ├── rules.py            # compliance rule engine
+│   ├── auth.py             # users, password hashing, and email OTP
+│   ├── preprocess.py       # image cleanup before OCR (OpenCV)
+│   ├── ocr.py              # OCR abstraction (Tesseract by default)
+│   ├── rules.py            # JSON-backed compliance rule engine
 │   ├── report.py           # PDF report generation
 │   └── storage.py          # SQLite scan repository
 ├── data/
-│   ├── rules.json           # mandatory declaration definitions (edit this to add/change rules)
-│   └── scans.db              # created automatically on first run
+│   └── rules.json          # mandatory declaration definitions
 ├── requirements.txt
 └── README.md
+```
+
+Runtime-generated files:
+
+- `data/auth.db` stores user accounts and password hashes.
+- `data/scans.db` stores scan history and is created automatically.
+
+### Module dependencies
+
+```mermaid
+graph LR
+  app.py --> auth.py
+  app.py --> preprocess.py
+  app.py --> ocr.py
+  app.py --> rules.py
+  app.py --> storage.py
+  app.py --> report.py
+  rules.py --> rules.json
+  auth.py --> authdb[(auth.db)]
+  storage.py --> scansdb[(scans.db)]
+  preprocess.py --> OpenCV
+  ocr.py --> Tesseract
 ```
 
 ## Setup
@@ -44,13 +107,30 @@ metrology-app/
 pip install -r requirements.txt
 ```
 
-### 3. Run the app
+### 3. Configure email OTP variables
+
+Create a `.env` file in the project root. Gmail requires an app password when two-factor authentication is enabled:
+
+```env
+EMAIL_ADDRESS=your-email@example.com
+EMAIL_APP_PASSWORD=your-gmail-app-password
+```
+
+The application can start without email configuration, but email OTP signup will not work.
+
+### 4. Run the app
 
 ```bash
 streamlit run app.py
 ```
 
 It will open at `http://localhost:8501`.
+
+## Data and configuration
+
+`data/rules.json` controls which declarations are checked. Each rule contains an identifier, display label, description, required flag, and one or more regular-expression patterns. Updating this file changes compliance evaluation without changing Python code.
+
+When a scan is saved, `data/scans.db` stores the product name, timestamp, compliance verdict, score, OCR text, and serialized field results. Scan history can be searched by product name from the Streamlit history page.
 
 ## How to test it
 
@@ -59,6 +139,15 @@ a shampoo bottle, anything with print on it) and upload it. The OCR
 accuracy depends heavily on lighting and focus — flat, well-lit,
 close-up shots work best. Try a few different products to see how
 the compliance score changes.
+
+## Manual test flow
+
+1. Start the application and create or log into an account.
+2. Open **Scanner** from the sidebar.
+3. Enter a product name and upload a clear PNG, JPG, JPEG, or WEBP image.
+4. Select **Scan Label** and review the OCR text and compliance fields.
+5. Select **Save Scan** or **Download PDF Report**.
+6. Open **Scan History** and search for the saved product.
 
 ## Extending this for the actual SIH submission
 
