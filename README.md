@@ -177,4 +177,4 @@ the compliance score changes.
 - Tesseract struggles with curved, glossy, or low-contrast labels more
   than commercial OCR services.
 - The font-size/readability check is not yet wired into the compliance
-  score — it's scaffolded in `preprocess.py` for you to complete.
+  score — it's scaffolded in `preprocess.py` for you to complete..
