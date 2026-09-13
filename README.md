@@ -99,7 +99,11 @@ graph LR
 
 - **Ubuntu/Debian**: `sudo apt-get install tesseract-ocr`
 - **macOS**: `brew install tesseract`
-- **Windows**: install from https://github.com/UB-Mannheim/tesseract/wiki and add it to your PATH
+- **Windows**: install from https://github.com/UB-Mannheim/tesseract/wiki and add it to your PATH. If it is installed in a custom location, set `TESSERACT_CMD` to the full path of `tesseract.exe` before starting Streamlit:
+
+```env
+TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+```
 
 ### 2. Install Python dependencies
 

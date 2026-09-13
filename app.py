@@ -16,7 +16,7 @@ from core.auth import (
     verify_email_otp,
 )
 
-from core.ocr import extract_text
+from core.ocr import OCRConfigurationError, extract_text, get_tesseract_path
 from core.preprocess import preprocess_for_ocr
 from core.report import generate_pdf_report
 from core.rules import check_compliance
@@ -1267,6 +1267,16 @@ def scanner_page():
         # PREPROCESS
         # ----------------------------------------------------
 
+        try:
+            get_tesseract_path()
+        except OCRConfigurationError as error:
+            st.error(str(error))
+            st.info(
+                "After installing Tesseract on Windows, restart this app "
+                "so the updated PATH is loaded."
+            )
+            return
+
         with st.spinner(
             "Processing image..."
         ):
@@ -1276,6 +1286,12 @@ def scanner_page():
                 processed = preprocess_for_ocr(
                     image
                 )
+
+            except OCRConfigurationError as error:
+
+                st.error(str(error))
+
+                return
 
             except Exception as e:
 
