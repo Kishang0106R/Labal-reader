@@ -30,12 +30,15 @@ def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 1600) -> Image.Ima
     """
     Run a standard cleanup pipeline on a label image before OCR.
 
-    Steps:
-      1. Resize (cap the largest dimension so OCR runs fast & consistently)
-      2. Grayscale
-      3. Denoise
-      4. Contrast enhancement (CLAHE)
-      5. Adaptive threshold (binarize for cleaner character edges)
+        Steps:
+            1. Resize (cap the largest dimension so OCR runs fast & consistently)
+            2. Grayscale
+            3. Denoise
+            4. Contrast enhancement (CLAHE)
+
+        The enhanced grayscale image is returned instead of a single thresholded
+        image. Tesseract performs better when the OCR layer can compare grayscale
+        and thresholded variants, especially for colored or low-contrast labels.
 
     Returns a PIL image ready to hand to the OCR engine.
     """
@@ -43,9 +46,21 @@ def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 1600) -> Image.Ima
 
     # 1. Resize if oversized, preserving aspect ratio
     h, w = cv_img.shape[:2]
-    scale = max_dim / max(h, w)
+    largest_dimension = max(h, w)
+    scale = max_dim / largest_dimension
     if scale < 1:
-        cv_img = cv2.resize(cv_img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        cv_img = cv2.resize(
+            cv_img,
+            (int(w * scale), int(h * scale)),
+            interpolation=cv2.INTER_AREA,
+        )
+    elif largest_dimension < 1800:
+        scale = 1800 / largest_dimension
+        cv_img = cv2.resize(
+            cv_img,
+            (int(w * scale), int(h * scale)),
+            interpolation=cv2.INTER_CUBIC,
+        )
 
     # 2. Grayscale
     gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
@@ -57,12 +72,7 @@ def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 1600) -> Image.Ima
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(denoised)
 
-    # 5. Adaptive threshold -> clean black/white text
-    thresh = cv2.adaptiveThreshold(
-        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 11
-    )
-
-    return cv2_to_pil(thresh)
+    return cv2_to_pil(enhanced)
 
 
 def estimate_text_heights_mm(pil_image: Image.Image, dpi: int = 300) -> list[float]:

@@ -14,6 +14,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import pytesseract
+import cv2
+import numpy as np
 from PIL import Image
 
 ENGINE = "tesseract"  # change to "cloud_vision" once you wire up an API key
@@ -57,18 +59,61 @@ def extract_text(pil_image: Image.Image) -> str:
 
 
 def _extract_with_tesseract(pil_image: Image.Image) -> str:
-    # --psm 6: assume a single uniform block of text — works well for labels
     pytesseract.pytesseract.tesseract_cmd = get_tesseract_path()
-    config = "--psm 6"
+    image = pil_image.convert("L")
+    image_array = np.array(image)
+    variants = [
+        image_array,
+        cv2.adaptiveThreshold(
+            image_array,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            31,
+            11,
+        ),
+        cv2.threshold(image_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1],
+    ]
+
+    best_text = ""
+    best_score = -1.0
     try:
-        text = pytesseract.image_to_string(pil_image, config=config)
+        for variant in variants:
+            for page_mode in (6, 11, 12):
+                config = f"--oem 3 --psm {page_mode}"
+                data = pytesseract.image_to_data(
+                    variant,
+                    config=config,
+                    output_type=pytesseract.Output.DICT,
+                )
+                text_parts = []
+                confidences = []
+                for text, confidence in zip(data["text"], data["conf"]):
+                    if text.strip():
+                        text_parts.append(text)
+                        try:
+                            confidence_value = float(confidence)
+                        except (TypeError, ValueError):
+                            confidence_value = 0.0
+                        if confidence_value >= 0:
+                            confidences.append(confidence_value)
+
+                candidate_text = " ".join(text_parts).strip()
+                if not candidate_text:
+                    continue
+                confidence_score = sum(confidences) / len(confidences)
+                length_bonus = min(len(candidate_text), 120) / 120
+                score = confidence_score + length_bonus
+                if score > best_score:
+                    best_score = score
+                    best_text = candidate_text
     except pytesseract.TesseractNotFoundError as error:
         get_tesseract_path.cache_clear()
         raise OCRConfigurationError(
             "Tesseract was found but could not be started. Check the "
             "TESSERACT_CMD path or reinstall Tesseract OCR."
         ) from error
-    return text
+    return best_text
 
 
 def _extract_with_cloud_vision(pil_image: Image.Image) -> str:
