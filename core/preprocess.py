@@ -26,7 +26,7 @@ def cv2_to_pil(cv_image: np.ndarray) -> Image.Image:
     return Image.fromarray(rgb)
 
 
-def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 1600) -> Image.Image:
+def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 2400) -> Image.Image:
     """
     Run a standard cleanup pipeline on a label image before OCR.
 
@@ -47,6 +47,9 @@ def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 1600) -> Image.Ima
     # 1. Resize if oversized, preserving aspect ratio
     h, w = cv_img.shape[:2]
     largest_dimension = max(h, w)
+    if largest_dimension == 0:
+        raise ValueError("The uploaded image has no usable pixels.")
+
     scale = max_dim / largest_dimension
     if scale < 1:
         cv_img = cv2.resize(
@@ -54,8 +57,8 @@ def preprocess_for_ocr(pil_image: Image.Image, max_dim: int = 1600) -> Image.Ima
             (int(w * scale), int(h * scale)),
             interpolation=cv2.INTER_AREA,
         )
-    elif largest_dimension < 1800:
-        scale = 1800 / largest_dimension
+    elif largest_dimension < 2200:
+        scale = 2200 / largest_dimension
         cv_img = cv2.resize(
             cv_img,
             (int(w * scale), int(h * scale)),

@@ -1312,7 +1312,8 @@ def scanner_page():
             try:
 
                 extracted_text = extract_text(
-                    processed
+                    image,
+                    preprocessed_image=processed,
                 )
 
             except Exception as e:
@@ -1322,6 +1323,16 @@ def scanner_page():
                 )
 
                 return
+
+        if not extracted_text.strip():
+            st.error(
+                "No readable text was found on this label."
+            )
+            st.info(
+                "Use a sharp, well-lit close-up with the text facing the camera. "
+                "Crop out the background and try again."
+            )
+            return
 
         # ----------------------------------------------------
         # COMPLIANCE

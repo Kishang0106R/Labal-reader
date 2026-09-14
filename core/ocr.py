@@ -48,38 +48,66 @@ def get_tesseract_path() -> str:
     )
 
 
-def extract_text(pil_image: Image.Image) -> str:
-    """Extract raw text from a (preferably preprocessed) label image."""
+def extract_text(pil_image: Image.Image, preprocessed_image: Image.Image | None = None) -> str:
+    """Extract text from the original label and an optional enhanced copy."""
     if ENGINE == "tesseract":
-        return _extract_with_tesseract(pil_image)
+        return _extract_with_tesseract(pil_image, preprocessed_image)
     elif ENGINE == "cloud_vision":
         return _extract_with_cloud_vision(pil_image)
     else:
         raise ValueError(f"Unknown OCR engine: {ENGINE}")
 
 
-def _extract_with_tesseract(pil_image: Image.Image) -> str:
+def _extract_with_tesseract(
+    pil_image: Image.Image,
+    preprocessed_image: Image.Image | None = None,
+) -> str:
     pytesseract.pytesseract.tesseract_cmd = get_tesseract_path()
-    image = pil_image.convert("L")
-    image_array = np.array(image)
-    variants = [
-        image_array,
-        cv2.adaptiveThreshold(
-            image_array,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            31,
-            11,
-        ),
-        cv2.threshold(image_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1],
-    ]
+    source = pil_image.convert("RGB")
+    image_array = np.array(source.convert("L"))
+    if image_array.size == 0:
+        return ""
 
-    best_text = ""
-    best_score = -1.0
+    variants = [image_array]
+    if preprocessed_image is not None:
+        variants.append(np.array(preprocessed_image.convert("L")))
+
+    # Upscaling helps Tesseract resolve small declarations on packaging.
+    if max(image_array.shape[:2]) < 2600:
+        scale = 2600 / max(image_array.shape[:2])
+        enlarged = cv2.resize(
+            image_array,
+            (int(image_array.shape[1] * scale), int(image_array.shape[0] * scale)),
+            interpolation=cv2.INTER_CUBIC,
+        )
+        variants.append(enlarged)
+
+    enhanced_variants = []
+    for variant in variants:
+        denoised = cv2.bilateralFilter(variant, 7, 50, 50)
+        enhanced = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(denoised)
+        enhanced_variants.extend(
+            [
+                enhanced,
+                cv2.adaptiveThreshold(
+                    enhanced,
+                    255,
+                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                    cv2.THRESH_BINARY,
+                    31,
+                    11,
+                ),
+                cv2.threshold(
+                    enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+                )[1],
+            ]
+        )
+
+    variants.extend(enhanced_variants)
+    best_candidates = []
     try:
         for variant in variants:
-            for page_mode in (6, 11, 12):
+            for page_mode in (6, 11, 12, 3):
                 config = f"--oem 3 --psm {page_mode}"
                 data = pytesseract.image_to_data(
                     variant,
@@ -89,31 +117,33 @@ def _extract_with_tesseract(pil_image: Image.Image) -> str:
                 text_parts = []
                 confidences = []
                 for text, confidence in zip(data["text"], data["conf"]):
-                    if text.strip():
-                        text_parts.append(text)
-                        try:
-                            confidence_value = float(confidence)
-                        except (TypeError, ValueError):
-                            confidence_value = 0.0
-                        if confidence_value >= 0:
-                            confidences.append(confidence_value)
+                    cleaned = text.strip()
+                    if not cleaned:
+                        continue
+                    text_parts.append(cleaned)
+                    try:
+                        confidence_value = float(confidence)
+                    except (TypeError, ValueError):
+                        confidence_value = 0.0
+                    if confidence_value >= 0:
+                        confidences.append(confidence_value)
 
                 candidate_text = " ".join(text_parts).strip()
                 if not candidate_text:
                     continue
-                confidence_score = sum(confidences) / len(confidences)
-                length_bonus = min(len(candidate_text), 120) / 120
-                score = confidence_score + length_bonus
-                if score > best_score:
-                    best_score = score
-                    best_text = candidate_text
+                confidence_score = sum(confidences) / len(confidences) if confidences else 0.0
+                score = confidence_score + min(len(candidate_text), 180) / 180
+                best_candidates.append((score, candidate_text))
     except pytesseract.TesseractNotFoundError as error:
         get_tesseract_path.cache_clear()
         raise OCRConfigurationError(
             "Tesseract was found but could not be started. Check the "
             "TESSERACT_CMD path or reinstall Tesseract OCR."
         ) from error
-    return best_text
+
+    if not best_candidates:
+        return ""
+    return max(best_candidates, key=lambda candidate: candidate[0])[1]
 
 
 def _extract_with_cloud_vision(pil_image: Image.Image) -> str:

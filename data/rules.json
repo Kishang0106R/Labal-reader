@@ -37,11 +37,11 @@
       "label": "Name & Address of Manufacturer/Packer/Importer",
       "description": "Full name and address of the manufacturer, packer, or importer of the commodity.",
       "patterns": [
-        "\\bMANUFACTURED\\s+BY\\b",
-        "\\bMARKETED\\s+BY\\b",
-        "\\bPACKED\\s+BY\\b",
-        "\\bIMPORTED\\s+BY\\b",
-        "\\bMFG\\.?\\s*BY\\b"
+        "\\b(?:MANUFACTURED|MANUFACTURER|MFD|MFG)\\.?\\s*(?:BY|AT|ADDRESS)\\b",
+        "\\b(?:PACKED|PACKER|PKD|PKG)\\.?\\s*(?:BY|AT|ADDRESS)\\b",
+        "\\b(?:IMPORTED|IMPORTER)\\.?\\s*(?:BY|AT|ADDRESS)\\b",
+        "\\bMARKETED\\s*(?:BY|AT|ADDRESS)\\b",
+        "\\b(?:MANUFACTURED|PACKED|IMPORTED)\\s*(?:AND|&)\\s*(?:PACKED|MARKETED|IMPORTED)\\s+BY\\b"
       ],
       "required": true
     },
@@ -63,8 +63,11 @@
       "label": "Country of Origin",
       "description": "Required for imported goods — country where the product was manufactured.",
       "patterns": [
-        "COUNTRY\\s+OF\\s+ORIGIN",
-        "MADE\\s+IN\\s+[A-Z]+"
+        "\\bCOUNTRY\\s+OF\\s+ORIGIN\\s*[:=-]?\\s*[A-Z][A-Z .'-]*",
+        "\\b(?:MADE|PRODUCT|PRODUCED|MANUFACTURED)\\s+IN\\s*[:=-]?\\s*[A-Z][A-Z .'-]*",
+        "\\b(?:ORIGIN|COUNTRY)\\s*[:=-]\\s*[A-Z][A-Z .'-]*",
+        "\\bORIGIN\\s+[A-Z][A-Z .'-]*",
+        "\\bCOUNTRY\\s+OF\\s+ORIGIN\\b"
       ],
       "required": false
     }
