@@ -1,75 +1,112 @@
 {
-  "rules": [
-    {
-      "id": "mrp",
-      "label": "Maximum Retail Price (MRP)",
-      "description": "Retail price must be declared, inclusive of all taxes, typically prefixed with 'MRP' and a currency symbol.",
-      "patterns": [
-        "\\bMRP\\b",
-        "MAX(?:IMUM)?\\.?\\s*RETAIL\\s*PRICE",
-        "(?:RS\\.?|INR|\\u20b9)\\s?\\d+(?:[.,]\\d{1,2})?"
-      ],
-      "required": true
-    },
-    {
-      "id": "net_quantity",
-      "label": "Net Quantity",
-      "description": "Net weight/volume/count of the commodity, in standard units (g, kg, ml, l, or count).",
-      "patterns": [
-        "NET\\s*(?:WT|WEIGHT|QTY|QUANTITY|VOL|VOLUME)?",
-        "\\b\\d+(?:\\.\\d+)?\\s?(?:G|GM|GMS|KG|ML|L|LTR|LITRE|LITRES)\\b"
-      ],
-      "required": true
-    },
-    {
-      "id": "mfg_date",
-      "label": "Month & Year of Manufacture/Packing/Import",
-      "description": "Month and year the product was manufactured, packed, or imported.",
-      "patterns": [
-        "\\b(?:MFG|MFD|MANUFACTURE[D]?|PKD|PACKED|PACKAGING)\\b.{0,15}\\bDATE\\b",
-        "\\b(?:MFG|MFD|PKD)\\b\\.?\\s*[:\\-]?\\s*\\d{1,2}[/\\-]\\d{2,4}",
-        "\\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\.?\\s?\\d{4}\\b"
-      ],
-      "required": true
-    },
-    {
-      "id": "manufacturer",
-      "label": "Name & Address of Manufacturer/Packer/Importer",
-      "description": "Full name and address of the manufacturer, packer, or importer of the commodity.",
-      "patterns": [
-        "\\b(?:MANUFACTURED|MANUFACTURER|MFD|MFG)\\.?\\s*(?:BY|AT|ADDRESS)\\b",
-        "\\b(?:PACKED|PACKER|PKD|PKG)\\.?\\s*(?:BY|AT|ADDRESS)\\b",
-        "\\b(?:IMPORTED|IMPORTER)\\.?\\s*(?:BY|AT|ADDRESS)\\b",
-        "\\bMARKETED\\s*(?:BY|AT|ADDRESS)\\b",
-        "\\b(?:MANUFACTURED|PACKED|IMPORTED)\\s*(?:AND|&)\\s*(?:PACKED|MARKETED|IMPORTED)\\s+BY\\b"
-      ],
-      "required": true
-    },
-    {
-      "id": "consumer_care",
-      "label": "Consumer Care Details",
-      "description": "Contact information (phone, email, or address) for consumer complaints/queries.",
-      "patterns": [
-        "CONSUMER\\s*(?:CARE|COMPLAINT|HELPLINE)",
-        "CUSTOMER\\s*(?:CARE|SUPPORT)",
-        "[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}",
-        "\\b\\d{10}\\b",
-        "\\b1800[\\-\\s]?\\d{3}[\\-\\s]?\\d{4}\\b"
-      ],
-      "required": true
-    },
-    {
-      "id": "country_of_origin",
-      "label": "Country of Origin",
-      "description": "Required for imported goods — country where the product was manufactured.",
-      "patterns": [
-        "\\bCOUNTRY\\s+OF\\s+ORIGIN\\s*[:=-]?\\s*[A-Z][A-Z .'-]*",
-        "\\b(?:MADE|PRODUCT|PRODUCED|MANUFACTURED)\\s+IN\\s*[:=-]?\\s*[A-Z][A-Z .'-]*",
-        "\\b(?:ORIGIN|COUNTRY)\\s*[:=-]\\s*[A-Z][A-Z .'-]*",
-        "\\bORIGIN\\s+[A-Z][A-Z .'-]*",
-        "\\bCOUNTRY\\s+OF\\s+ORIGIN\\b"
-      ],
-      "required": false
-    }
-  ]
+"rules": [
+{
+"id": "mrp",
+"label": "Maximum Retail Price (MRP)",
+"description": "Retail price must be declared, inclusive of all applicable taxes, typically prefixed with MRP and a currency symbol.",
+"patterns": [
+"\\bMRP\\b",
+"\\bMRP\\s*[:.-]?\\s*(?:RS\\.?|INR|₹)?\\s*\\d+(?:[.,]\\d{1,2})?\\b",
+"\\bMAX(?:IMUM)?\\s*RETAIL\\s*PRICE\\b",
+"(?:RS\\.?|INR|₹)\\s*\\d+(?:[.,]\\d{1,2})?\\b",
+"\\b(?:MRP|MAX(?:IMUM)?\\s*RETAIL\\s*PRICE)\\s*[:.-]?\\s*(?:RS\\.?|INR|₹)?\\s*\\d+(?:[.,]\\d{1,2})?\\b"
+],
+"required": true
+},
+{
+  "id": "net_quantity",
+  "label": "Net Quantity",
+  "description": "Net weight, volume, or count of the commodity, expressed using standard units such as g, kg, ml, l, or count.",
+  "patterns": [
+    "\\bNET\\s*(?:WT|WEIGHT|QTY|QUANTITY|VOL|VOLUME)\\b",
+    "\\bNET\\s*(?:WT|WEIGHT|QTY|QUANTITY|VOL|VOLUME)?\\s*[:.-]?\\s*\\d+(?:\\.\\d+)?\\s*(?:G|GM|GMS|GRAM|GRAMS|KG|KGS|KILOGRAM|KILOGRAMS|MG|ML|MILLILITRE|MILLILITRES|L|LTR|LITRE|LITRES|LITER|LITERS)\\b",
+    "\\b\\d+(?:\\.\\d+)?\\s*(?:G|GM|GMS|GRAM|GRAMS|KG|KGS|KILOGRAM|KILOGRAMS|MG|ML|MILLILITRE|MILLILITRES|L|LTR|LITRE|LITRES|LITER|LITERS)\\b",
+    "\\b(?:NET\\s*)?(?:QTY|QUANTITY)\\s*[:.-]?\\s*\\d+\\s*(?:PCS|PC|PIECES|UNIT|UNITS|COUNT|CT)\\b"
+  ],
+  "required": true
+},
+
+{
+  "id": "mfg_date",
+  "label": "Month & Year of Manufacture/Packing/Import",
+  "description": "Month and year the product was manufactured, packed, or imported.",
+  "patterns": [
+    "\\b(?:MFG|MFD|MFO|MFT|MANUFACTURED?|PKD|PACKED|PACKAGING|PACKING)\\s*(?:DATE|DT|ON|AS\\s*ON)?\\s*[:.-]?\\s*(?:\\d{1,2}\\s*[/-]\\s*\\d{2,4}|\\d{1,2}\\s+\\d{2,4}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\s*[-/]?\\s*\\d{2,4})\\b",
+    "\\b(?:\\d{1,2}\\s*[/-]\\s*\\d{2,4}|\\d{1,2}\\s+\\d{2,4})\\s*(?:MFG|MFD|MFO|MFT|PKD|PACKED)\\b",
+    "\\b(?:MFG|MFD|MFO|MFT|PKD|PACKED|PACKAGING|PACKING)\\s*[:.-]?\\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\s*[-/]?\\s*\\d{2,4}\\b"
+  ],
+  "required": true
+},
+
+{
+  "id": "manufacturer",
+  "label": "Name & Address of Manufacturer/Packer/Importer",
+  "description": "Name and address of the manufacturer, packer, importer, or marketer of the commodity.",
+  "patterns": [
+    "\\b(?:MANUFACTURED|MANUFACTURER|MFD|MFG)\\s*(?:BY|AT|ADDRESS)\\b",
+    "\\b(?:PACKED|PACKER|PKD|PKG|PACKAGING)\\s*(?:BY|AT|ADDRESS)\\b",
+    "\\b(?:IMPORTED|IMPORTER)\\s*(?:BY|AT|ADDRESS)\\b",
+    "\\bMARKETED\\s*(?:BY|AT|ADDRESS)\\b",
+    "\\b(?:MANUFACTURED|PACKED|IMPORTED)\\s*(?:AND|&)\\s*(?:PACKED|MARKETED|IMPORTED)\\s+BY\\b",
+    "\\bMANUFACTURED\\s*(?:BY|FOR)\\b",
+    "\\bPACKED\\s*(?:BY|FOR)\\b",
+    "\\bIMPORTED\\s*(?:BY|FOR)\\b",
+    "\\b(?:MFG|MFD|PKD|PKG|IMP)\\s*(?:BY|FOR)\\b"
+  ],
+  "required": true
+},
+
+{
+  "id": "consumer_care",
+  "label": "Consumer Care Details",
+  "description": "Contact information such as phone number, email address, helpline, or consumer care details for complaints and queries.",
+  "patterns": [
+    "\\bCONSUMER\\s*(?:CARE|COMPLAINT|HELPLINE|SERVICE)\\b",
+    "\\bCUSTOMER\\s*(?:CARE|SUPPORT|SERVICE)\\b",
+    "\\bCONSUMER\\s*(?:CARE|COMPLAINT|HELPLINE)\\s*[:.-]?\\s*(?:NO|NUMBER)?\\b",
+    "[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}\\b",
+    "\\b(?:TEL|PHONE|PH|MOBILE|CONTACT)\\s*[:.-]?\\s*\\+?\\d[\\d\\s-]{8,14}\\b",
+    "\\b\\d{10}\\b",
+    "\\b1800[\\s-]?\\d{3}[\\s-]?\\d{4}\\b",
+    "\\b(?:TOLL\\s*FREE|HELPLINE)\\s*[:.-]?\\s*\\+?\\d[\\d\\s-]{7,14}\\b"
+  ],
+  "required": true
+},
+
+{
+  "id": "expiry_date",
+  "label": "Expiry / Best Before Date",
+  "description": "Expiry date, use-by date, or best-before declaration of the product.",
+  "patterns": [
+    "\\b(?:EXP|EXPIRY|EXPIRES|USE\\s*BY)\\s*[:.-]?\\s*(?:\\d{1,2}[/-]\\d{2,4}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\s*\\d{4})\\b",
+    "\\bBEST\\s*BEFORE\\s*[:.-]?\\s*(?:\\d+\\s*(?:DAYS?|MONTHS?|YEARS?)|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\s*\\d{4}|\\d{1,2}[/-]\\d{2,4})\\b",
+    "\\bUSE\\s*BEFORE\\s*[:.-]?\\s*(?:\\d{1,2}[/-]\\d{2,4}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\\s*\\d{4})\\b"
+  ],
+  "required": false
+},
+
+{
+  "id": "batch_lot_number",
+  "label": "Batch / Lot Number",
+  "description": "Batch number, lot number, or production code used to identify the product batch.",
+  "patterns": [
+    "\\b(?:BATCH|BATCH\\s*NO|BATCH\\s*NUMBER)\\s*[:.-]?\\s*[A-Z0-9-]+\\b",
+    "\\b(?:LOT|LOT\\s*NO|LOT\\s*NUMBER)\\s*[:.-]?\\s*[A-Z0-9-]+\\b",
+    "\\b(?:BATCH|LOT)\\s*(?:CODE|NUMBER|NO)\\s*[:.-]?\\s*[A-Z0-9-]+\\b"
+  ],
+  "required": false
+},
+
+{
+  "id": "fssai_license",
+  "label": "FSSAI License Number",
+  "description": "Food products may display a 14-digit FSSAI license or registration number.",
+  "patterns": [
+    "\\b(?:FSSAI|LIC(?:ENCE|ENSE)?|LICENSE)\\s*(?:NO|NUMBER)?\\s*[:.-]?\\s*\\d{14}\\b",
+    "\\b\\d{14}\\b"
+  ],
+  "required": false
+}
+
+]
 }

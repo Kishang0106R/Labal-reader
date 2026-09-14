@@ -56,7 +56,9 @@ def save_scan(product_name: str, extracted_text: str, result: ComplianceResult) 
     conn.commit()
     scan_id = cur.lastrowid
     conn.close()
-    return scan_id
+    if scan_id is None:
+        raise RuntimeError("Scan could not be saved to the database.")
+    return int(scan_id)
 
 
 def list_scans(search: str | None = None) -> list[dict]:

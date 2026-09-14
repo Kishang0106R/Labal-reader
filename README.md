@@ -124,11 +124,19 @@ The application can start without email configuration, but email OTP signup will
 
 ### 4. Run the app
 
+Use the included launcher so the app automatically selects a free port if 8501 is already in use:
+
 ```bash
-streamlit run app.py
+python run_app.py
 ```
 
-It will open at `http://localhost:8501`.
+Or run it directly with Streamlit:
+
+```bash
+streamlit run app.py --server.port 8501
+```
+
+If the default port is busy, either free port 8501 or set `STREAMLIT_PORT` in your `.env` file before launching.
 
 ## Data and configuration
 
