@@ -43,7 +43,7 @@
   "label": "Name & Address of Manufacturer/Packer/Importer",
   "description": "Name and address of the manufacturer, packer, importer, or marketer of the commodity.",
   "patterns": [
-    "\\b(?:MANUFACTURED|MANUFACTURER|MFD|MFG)\\s*(?:BY|AT|ADDRESS)\\b",
+    "\\b(?:MANUFACTURED|MANUFACTURER|MFD|MFD.|MFD.:|MFD:|MFG)\\s*(?:BY|AT|ADDRESS)\\b",
     "\\b(?:PACKED|PACKER|PKD|PKG|PACKAGING)\\s*(?:BY|AT|ADDRESS)\\b",
     "\\b(?:IMPORTED|IMPORTER)\\s*(?:BY|AT|ADDRESS)\\b",
     "\\bMARKETED\\s*(?:BY|AT|ADDRESS)\\b",

@@ -188,6 +188,7 @@ def init_auth_db() -> None:
             CREATE INDEX IF NOT EXISTS
             idx_users_email
             ON users(email)
+
             """
         )
 
@@ -558,8 +559,8 @@ def create_user(
             )
 
         return (
-            False,
-            "Could not create account.",
+        False,
+        f"Database error: {error}",
         )
 
     except Exception as error:
